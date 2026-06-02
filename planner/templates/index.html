@@ -1,0 +1,822 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartMatPlaner - Din Personliga Kostplanerare</title>
+    <meta name="description" content="Planera dina måltider enkelt med SmartMatPlaner. Välj kalorimål och kostpreferenser för att få en anpassad, näringsberäknad kostplan direkt i webbläsaren.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Connected Style Sheet -->
+    <link rel="stylesheet" href="{% static 'css/standalone_styles.css' %}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+            <div class="sidebar-header">
+                <div class="app-logo">
+                    <i class="fa-solid fa-utensils logo-icon"></i>
+                    <h1>SmartMatPlaner</h1>
+                </div>
+                <p class="tagline">Personlig kostplanering, helt lokalt.</p>
+                <div class="app-mode-badge"><i class="fa-solid fa-cloud-sun"></i> Webbläsar-läge (Offline)</div>
+            </div>
+
+            <!-- Form -->
+            <section class="plan-form-section">
+                <h2 class="section-title"><i class="fa-solid fa-sliders"></i> Skapa ny plan</h2>
+                <form id="meal-plan-form" class="meal-plan-form" onsubmit="handleFormSubmit(event)">
+                    <div class="form-group">
+                        <label for="input-days">
+                            <span>Antal dagar</span>
+                            <span class="value-display" id="days-val">3 dagar</span>
+                        </label>
+                        <input type="range" id="input-days" min="1" max="7" value="3" oninput="updateSliderVal('input-days', 'days-val', ' dagar')">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-people">
+                            <span>Antal personer</span>
+                            <span class="value-display" id="people-val">2 personer</span>
+                        </label>
+                        <input type="range" id="input-people" min="1" max="6" value="2" oninput="updateSliderVal('input-people', 'people-val', ' personer')">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-calories">
+                            <span>Kalorimål per dag</span>
+                            <span class="value-display highlight" id="calories-val">1800 kcal</span>
+                        </label>
+                        <input type="range" id="input-calories" min="1200" max="4000" step="50" value="1800" oninput="updateSliderVal('input-calories', 'calories-val', ' kcal')">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Kostpreferenser</label>
+                        <div class="tags-grid">
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="laktosfri">
+                                <span class="tag-card"><i class="fa-solid fa-cow"></i> Laktosfri</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="glutenfri">
+                                <span class="tag-card"><i class="fa-solid fa-wheat-awn"></i> Glutenfri</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="vegetarisk">
+                                <span class="tag-card"><i class="fa-solid fa-carrot"></i> Vegetarisk</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="vegan">
+                                <span class="tag-card"><i class="fa-solid fa-leaf"></i> Vegan</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="halal">
+                                <span class="tag-card"><i class="fa-solid fa-mosque"></i> Halal</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="kosher">
+                                <span class="tag-card"><i class="fa-solid fa-star-of-david"></i> Kosher</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="proteinrik">
+                                <span class="tag-card"><i class="fa-solid fa-dumbbell"></i> Proteinrik</span>
+                            </label>
+                            <label class="tag-checkbox-label">
+                                <input type="checkbox" name="pref_tags" value="lågkolhydrat">
+                                <span class="tag-card"><i class="fa-solid fa-shrimp"></i> Lågkolhydrat</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-other-pref">Andra önskemål</label>
+                        <input type="text" id="input-other-pref" placeholder="t.ex. inga tomater, extra fibrer..." autocomplete="off">
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btn-generate">
+                        <span class="btn-text">Generera matplan</span>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Saved History -->
+            <section class="history-section">
+                <h2 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Sparade matplaner</h2>
+                <div class="history-list" id="history-list">
+                    <div class="history-empty">Inga tidigare planer sparade.</div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="app-main">
+            <!-- Loading -->
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="loader"></div>
+                <p>Kompilerar recept och beräknar kalorier...</p>
+            </div>
+
+            <!-- Welcome -->
+            <div class="welcome-board" id="welcome-board">
+                <i class="fa-solid fa-circle-nodes welcome-icon"></i>
+                <h2>Välkommen till SmartMatPlaner!</h2>
+                <p>Konfigurera inställningarna i menyn till vänster och klicka på <strong>Generera matplan</strong> för att skapa en personligt anpassad matplan direkt i din webbläsare med avancerad näringsanalys och interaktiva diagram.</p>
+                <div class="welcome-features">
+                    <div class="feat-card">
+                        <i class="fa-solid fa-chart-pie color-teal"></i>
+                        <h3>Kostfördelning</h3>
+                        <p>Se exakta fördelningar av protein, kolhydrater och fetter.</p>
+                    </div>
+                    <div class="feat-card">
+                        <i class="fa-solid fa-scale-balanced color-emerald"></i>
+                        <h3>Kaloriskalning</h3>
+                        <p>Måltidernas portioner skalas matematiskt för dina mål.</p>
+                    </div>
+                    <div class="feat-card">
+                        <i class="fa-solid fa-basket-shopping color-orange"></i>
+                        <h3>Inköpslista</h3>
+                        <p>Ingredienser ackumuleras efter antal personer.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Dashboard -->
+            <div class="dashboard" id="dashboard" style="display: none;">
+                <header class="dashboard-header-card">
+                    <div class="header-details">
+                        <span class="active-badge"><i class="fa-solid fa-circle-check"></i> Aktiv kostplan</span>
+                        <h2 id="plan-title">Matplan</h2>
+                        <p id="plan-meta"><i class="fa-solid fa-users"></i> 2 personer &bull; <i class="fa-solid fa-calendar"></i> 3 dagar</p>
+                    </div>
+                    <div class="header-dietitian-comment">
+                        <div class="dietitian-avatar"><i class="fa-solid fa-user-doctor"></i></div>
+                        <div class="comment-bubble">
+                            <h4>Kostrådgivarens rekommendation:</h4>
+                            <p id="dietitian-comment">Planen är balanserad...</p>
+                        </div>
+                    </div>
+                </header>
+
+                <section class="analytics-row">
+                    <!-- Calorie Chart -->
+                    <div class="analytics-card chart-card">
+                        <h3><i class="fa-solid fa-chart-line"></i> Kaloritrajektorie</h3>
+                        <div class="chart-container">
+                            <canvas id="calorieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Macro Chart -->
+                    <div class="analytics-card macro-card">
+                        <h3><i class="fa-solid fa-chart-pie"></i> Genomsnittlig Makrofördelning</h3>
+                        <div class="macro-layout">
+                            <div class="chart-container-donut">
+                                <canvas id="macroChart"></canvas>
+                            </div>
+                            <div class="macro-stats">
+                                <div class="macro-stat-item color-carb">
+                                    <span class="dot"></span>
+                                    <span class="label">Kolhydrater:</span>
+                                    <span class="val" id="stats-carbs">0g</span>
+                                </div>
+                                <div class="macro-stat-item color-protein">
+                                    <span class="dot"></span>
+                                    <span class="label">Protein:</span>
+                                    <span class="val" id="stats-protein">0g</span>
+                                </div>
+                                <div class="macro-stat-item color-fat">
+                                    <span class="dot"></span>
+                                    <span class="label">Fett:</span>
+                                    <span class="val" id="stats-fat">0g</span>
+                                </div>
+                                <div class="macro-stat-item total-calories">
+                                    <i class="fa-solid fa-fire-flame-simple"></i>
+                                    <span class="label">Kalorimål:</span>
+                                    <span class="val" id="stats-target-calories">1800 kcal</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Explorer -->
+                <section class="meals-explorer">
+                    <header class="meals-header">
+                        <h3><i class="fa-solid fa-utensils"></i> Veckans måltider</h3>
+                        <div class="day-tabs" id="day-tabs"></div>
+                    </header>
+                    <div class="meal-grid" id="meal-grid"></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==========================================================================
+         Standalone JavaScript Engine (Offline Planner + LocalStorage API)
+         ========================================================================== -->
+    <script>
+        // Recipe Database
+        const RECIPES = {
+            breakfast: [
+                {
+                    title: 'Klassisk Havregrynsgröt med bär och banan',
+                    description: 'En näringsrik och fiberrik frukost som håller dig mätt länge. Toppad med skivad banan, färska blåbär och chiafrön.',
+                    base_calories: 350, base_protein: 11.0, base_fat: 6.0, base_carbs: 63.0,
+                    tags: ['laktosfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Havregryn', base_amount: 1.0, unit: 'dl' },
+                        { name: 'Vatten', base_amount: 2.0, unit: 'dl' },
+                        { name: 'Banan (skivad)', base_amount: 0.5, unit: 'st' },
+                        { name: 'Blåbär', base_amount: 0.5, unit: 'dl' },
+                        { name: 'Chiafrön', base_amount: 1.0, unit: 'tsk' }
+                    ]
+                },
+                {
+                    title: 'Äggröra på surdegsbröd med spenat',
+                    description: 'Proteinrik frukost gjord på färska ägg som vispas krämigt och serveras på en skiva rostat surdegsbröd med babyspenat.',
+                    base_calories: 400, base_protein: 22.0, base_fat: 18.0, base_carbs: 34.0,
+                    tags: ['laktosfri', 'vegetarisk', 'halal', 'kosher', 'proteinrik'],
+                    ingredients: [
+                        { name: 'Ägg', base_amount: 2.0, unit: 'st' },
+                        { name: 'Surdegsbröd', base_amount: 1.0, unit: 'skiva' },
+                        { name: 'Babyspenat', base_amount: 20.0, unit: 'g' },
+                        { name: 'Olivolja', base_amount: 1.0, unit: 'tsk' }
+                    ]
+                },
+                {
+                    title: 'Bär- och spenatsmoothie med mandelmjölk',
+                    description: 'En fräsch, färgstark och laktosfri smoothie laddad med vitaminer och antioxidanter. Mixad slät.',
+                    base_calories: 300, base_protein: 8.0, base_fat: 7.0, base_carbs: 51.0,
+                    tags: ['laktosfri', 'glutenfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Frysta blandade bär', base_amount: 1.5, unit: 'dl' },
+                        { name: 'Babyspenat', base_amount: 1.0, unit: 'näve' },
+                        { name: 'Mandelmjölk', base_amount: 2.5, unit: 'dl' },
+                        { name: 'Hampafrön', base_amount: 1.0, unit: 'msk' },
+                        { name: 'Banan', base_amount: 0.5, unit: 'st' }
+                    ]
+                },
+                {
+                    title: 'Avokadomacka med kokt ägg och chiliflakes',
+                    description: 'Rostat bröd toppat med krämig mosad avokado, ett perfekt hårdkokt ägg i skivor och sting från chiliflakes.',
+                    base_calories: 380, base_protein: 14.0, base_fat: 20.0, base_carbs: 32.0,
+                    tags: ['laktosfri', 'vegetarisk', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Surdegsbröd', base_amount: 1.0, unit: 'skiva' },
+                        { name: 'Avokado', base_amount: 0.5, unit: 'st' },
+                        { name: 'Ägg (kokt)', base_amount: 1.0, unit: 'st' },
+                        { name: 'Citronsaft', base_amount: 1.0, unit: 'tsk' }
+                    ]
+                }
+            ],
+            lunch: [
+                {
+                    title: 'Krämig linsgryta med kokosmjölk och ris',
+                    description: 'En fyllig och värmande gryta gjord på röda linser, kokosmjölk, krossade tomater och doftande indiska kryddor. Med kokt ris.',
+                    base_calories: 600, base_protein: 21.0, base_fat: 16.0, base_carbs: 89.0,
+                    tags: ['laktosfri', 'glutenfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Röda linser (torra)', base_amount: 0.75, unit: 'dl' },
+                        { name: 'Kokosmjölk', base_amount: 1.5, unit: 'dl' },
+                        { name: 'Krossade tomater', base_amount: 150.0, unit: 'g' },
+                        { name: 'Basmatiris', base_amount: 0.75, unit: 'dl' },
+                        { name: 'Lök & vitlök', base_amount: 0.5, unit: 'st' }
+                    ]
+                },
+                {
+                    title: 'Ugnsbakad kycklingfilé med sötpotatis',
+                    description: 'Klassisk hälsosam lunch. Mört ugnsbakad kycklingfilé kryddad med örter, serveras med klyftad sötpotatis och krispiga broccolibuketter.',
+                    base_calories: 580, base_protein: 44.0, base_fat: 12.0, base_carbs: 68.0,
+                    tags: ['laktosfri', 'glutenfri', 'halal', 'proteinrik'],
+                    ingredients: [
+                        { name: 'Kycklingfilé', base_amount: 150.0, unit: 'g' },
+                        { name: 'Sötpotatis', base_amount: 200.0, unit: 'g' },
+                        { name: 'Broccoli', base_amount: 100.0, unit: 'g' },
+                        { name: 'Olivolja', base_amount: 1.0, unit: 'msk' }
+                    ]
+                },
+                {
+                    title: 'Stekt laxfilé med quinoa och sparris',
+                    description: 'Krispigt stekt laxfilé serverad med fluffig quinoa, ångad sparris och en skiva citron. En fantastisk omega-3-källa.',
+                    base_calories: 650, base_protein: 36.0, base_fat: 28.0, base_carbs: 52.0,
+                    tags: ['laktosfri', 'glutenfri', 'halal', 'kosher', 'proteinrik'],
+                    ingredients: [
+                        { name: 'Laxfilé', base_amount: 140.0, unit: 'g' },
+                        { name: 'Quinoa (torr)', base_amount: 0.75, unit: 'dl' },
+                        { name: 'Sparris', base_amount: 5.0, unit: 'st' },
+                        { name: 'Citron', base_amount: 0.25, unit: 'st' }
+                    ]
+                },
+                {
+                    title: 'Medelhavssallad med kikärtor och oliver',
+                    description: 'Krispig och färgstark sallad. Blanda kikärtor, gurka, tomater, rödlök och oliver med en örtig olivoljedressing.',
+                    base_calories: 520, base_protein: 17.0, base_fat: 18.0, base_carbs: 66.0,
+                    tags: ['laktosfri', 'glutenfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Kikärtor (sköljda)', base_amount: 150.0, unit: 'g' },
+                        { name: 'Gurka', base_amount: 0.5, unit: 'st' },
+                        { name: 'Körsbärstomater', base_amount: 5.0, unit: 'st' },
+                        { name: 'Kalamataoliver', base_amount: 6.0, unit: 'st' }
+                    ]
+                }
+            ],
+            dinner: [
+                {
+                    title: 'Kryddig Nötfärs chili med svarta bönor',
+                    description: 'En mustig chiligryta på mager nötfärs, svarta bönor och fyllig tomatsås. Serveras med kokt ris.',
+                    base_calories: 720, base_protein: 41.0, base_fat: 22.0, base_carbs: 85.0,
+                    tags: ['laktosfri', 'glutenfri', 'halal', 'proteinrik'],
+                    ingredients: [
+                        { name: 'Mager nötfärs', base_amount: 130.0, unit: 'g' },
+                        { name: 'Svarta bönor', base_amount: 80.0, unit: 'g' },
+                        { name: 'Krossade tomater', base_amount: 150.0, unit: 'g' },
+                        { name: 'Ris (torrt)', base_amount: 0.8, unit: 'dl' }
+                    ]
+                },
+                {
+                    title: 'Tofu i thailändsk röd curry med bambuskott',
+                    description: 'Tofutärningar sjudna i thailändsk röd currypasta, kokosmjölk, krispiga bambuskott och röd paprika. Med ris.',
+                    base_calories: 680, base_protein: 22.0, base_fat: 24.0, base_carbs: 90.0,
+                    tags: ['laktosfri', 'glutenfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Fast tofu', base_amount: 150.0, unit: 'g' },
+                        { name: 'Kokosmjölk', base_amount: 2.0, unit: 'dl' },
+                        { name: 'Röd currypasta', base_amount: 1.0, unit: 'msk' },
+                        { name: 'Bambuskott', base_amount: 50.0, unit: 'g' }
+                    ]
+                },
+                {
+                    title: 'Vegetarisk Chili sin Carne med majschips',
+                    description: 'Mustig bönchili på vita bönor, svarta bönor och majs. Serveras med krispiga majschips och skivad avokado.',
+                    base_calories: 640, base_protein: 21.0, base_fat: 18.0, base_carbs: 92.0,
+                    tags: ['laktosfri', 'glutenfri', 'vegetarisk', 'vegan', 'halal', 'kosher'],
+                    ingredients: [
+                        { name: 'Stora vita bönor', base_amount: 120.0, unit: 'g' },
+                        { name: 'Svarta bönor', base_amount: 80.0, unit: 'g' },
+                        { name: 'Krossade tomater', base_amount: 150.0, unit: 'g' },
+                        { name: 'Nachochips (majs)', base_amount: 25.0, unit: 'g' }
+                    ]
+                },
+                {
+                    title: 'Ugnsbakad torskrygg med potatismos',
+                    description: 'Klassisk husmanskost. Ugnsbakad torsk serverad med hemgjort laktosfritt potatismos och gröna ärter.',
+                    base_calories: 610, base_protein: 38.0, base_fat: 11.0, base_carbs: 84.0,
+                    tags: ['laktosfri', 'glutenfri', 'halal', 'kosher', 'proteinrik'],
+                    ingredients: [
+                        { name: 'Torskrygg', base_amount: 150.0, unit: 'g' },
+                        { name: 'Potatis', base_amount: 250.0, unit: 'g' },
+                        { name: 'Laktosfri mjölk', base_amount: 0.5, unit: 'dl' },
+                        { name: 'Gröna ärter', base_amount: 80.0, unit: 'g' }
+                    ]
+                }
+            ]
+        };
+
+        // Application State
+        let currentPlan = null;
+        let calorieChartInstance = null;
+        let macroChartInstance = null;
+
+        // On Page Load
+        document.addEventListener("DOMContentLoaded", () => {
+            loadHistory();
+        });
+
+        function updateSliderVal(sliderId, displayId, suffix) {
+            const slider = document.getElementById(sliderId);
+            const display = document.getElementById(displayId);
+            if (slider && display) {
+                display.textContent = slider.value + suffix;
+            }
+        }
+
+        // --- Algorithmic Generator ---
+        function generateMealPlanOffline(days, people, caloriesTarget, preferencesString) {
+            const normalizedPrefs = [];
+            const words = preferencesString.toLowerCase().split(/[\s,\.\-]+/);
+            
+            words.forEach(word => {
+                if (word.includes('laktos') || word.includes('mjölk')) normalizedPrefs.push('laktosfri');
+                if (word.includes('gluten')) normalizedPrefs.push('glutenfri');
+                if (word.includes('vegetar') || word.includes('vego')) normalizedPrefs.push('vegetarisk');
+                if (word.includes('vegan')) {
+                    normalizedPrefs.push('vegan', 'vegetarisk', 'laktosfri');
+                }
+                if (word.includes('halal')) normalizedPrefs.push('halal');
+                if (word.includes('kosher')) normalizedPrefs.push('kosher');
+                if (word.includes('protein')) normalizedPrefs.push('proteinrik');
+                if (word.includes('carb') || word.includes('kolhydrat')) normalizedPrefs.push('lågkolhydrat');
+            });
+
+            const uniquePrefs = [...new Set(normalizedPrefs)];
+
+            const filterPool = (mealType) => {
+                const pool = RECIPES[mealType];
+                let filtered = pool.filter(recipe => {
+                    return uniquePrefs.every(pref => {
+                        if (pref === 'lågkolhydrat') return recipe.base_carbs <= 60;
+                        return recipe.tags.includes(pref);
+                    });
+                });
+                if (filtered.length === 0) {
+                    const ethical = uniquePrefs.filter(p => ['vegetarisk', 'vegan', 'laktosfri', 'glutenfri'].includes(p));
+                    filtered = pool.filter(r => ethical.every(pref => r.tags.includes(pref)));
+                }
+                return filtered.length > 0 ? filtered : pool;
+            };
+
+            const breakfastPool = filterPool('breakfast');
+            const lunchPool = filterPool('lunch');
+            const dinnerPool = filterPool('dinner');
+
+            const targetBreakfast = 0.25 * caloriesTarget;
+            const targetLunch = 0.35 * caloriesTarget;
+            const targetDinner = 0.40 * caloriesTarget;
+
+            const dayPlans = [];
+
+            for (let day = 1; day <= days; day++) {
+                const bRecipe = breakfastPool[Math.floor(Math.random() * breakfastPool.length)];
+                const lRecipe = lunchPool[Math.floor(Math.random() * lunchPool.length)];
+                const dRecipe = dinnerPool[Math.floor(Math.random() * dinnerPool.length)];
+
+                const bScale = targetBreakfast / bRecipe.base_calories;
+                const lScale = targetLunch / lRecipe.base_calories;
+                const dScale = targetDinner / dRecipe.base_calories;
+
+                const bKcal = Math.round(bRecipe.base_calories * bScale);
+                const lKcal = Math.round(lRecipe.base_calories * lScale);
+                let dKcal = Math.round(dRecipe.base_calories * dScale);
+
+                const roundDiff = caloriesTarget - (bKcal + lKcal + dKcal);
+                dKcal += roundDiff;
+
+                const scaleIngredients = (list, scale) => {
+                    return list.map(ing => {
+                        const total = ing.base_amount * scale * people;
+                        const displayAmt = total % 1 === 0 ? total : parseFloat(total.toFixed(2));
+                        return {
+                            name: ing.name,
+                            amount: `${displayAmt} ${ing.unit}`.trim()
+                        };
+                    });
+                };
+
+                dayPlans.push({
+                    day_number: day,
+                    meals: [
+                        {
+                            meal_type: 'breakfast', title: bRecipe.title, description: bRecipe.description,
+                            calories: bKcal,
+                            protein: parseFloat((bRecipe.base_protein * bScale).toFixed(1)),
+                            fat: parseFloat((bRecipe.base_fat * bScale).toFixed(1)),
+                            carbohydrates: parseFloat((bRecipe.base_carbs * bScale).toFixed(1)),
+                            ingredients: scaleIngredients(bRecipe.ingredients, bScale)
+                        },
+                        {
+                            meal_type: 'lunch', title: lRecipe.title, description: lRecipe.description,
+                            calories: lKcal,
+                            protein: parseFloat((lRecipe.base_protein * lScale).toFixed(1)),
+                            fat: parseFloat((lRecipe.base_fat * lScale).toFixed(1)),
+                            carbohydrates: parseFloat((lRecipe.base_carbs * lScale).toFixed(1)),
+                            ingredients: scaleIngredients(lRecipe.ingredients, lScale)
+                        },
+                        {
+                            meal_type: 'dinner', title: dRecipe.title, description: dRecipe.description,
+                            calories: dKcal,
+                            protein: parseFloat((dRecipe.base_protein * dScale).toFixed(1)),
+                            fat: parseFloat((dRecipe.base_fat * dScale).toFixed(1)),
+                            carbohydrates: parseFloat((dRecipe.base_carbs * dScale).toFixed(1)),
+                            ingredients: scaleIngredients(dRecipe.ingredients, dScale)
+                        }
+                    ]
+                });
+            }
+
+            let prefNames = uniquePrefs.map(p => {
+                if (p === 'laktosfri') return 'laktosfri';
+                if (p === 'glutenfri') return 'glutenfri';
+                if (p === 'vegetarisk') return 'vegetarisk';
+                if (p === 'vegan') return 'helt vegansk';
+                if (p === 'proteinrik') return 'extra proteinrik';
+                if (p === 'lågkolhydrat') return 'kolhydrat-kontrollerad';
+                return p;
+            });
+
+            let comment = `Den här planen på ${days} dagar är framtagen lokalt för ${people} personer med ett dagsmål på ${caloriesTarget} kcal. `;
+            if (prefNames.length > 0) {
+                comment += `Recepten har anpassats så att måltiderna är helt ${prefNames.join(', ')}. `;
+            }
+            comment += "Fördelningen är beräknad enligt rekommenderade andelar protein, kolhydrater och sunda fetter för att ge stabil mättnad. Drick ordentligt med vatten!";
+
+            return {
+                id: Date.now(),
+                days: days,
+                people: people,
+                calories_target: caloriesTarget,
+                preferences: preferencesString,
+                ai_comment: comment,
+                day_plans: dayPlans,
+                created_at: new Date().toISOString()
+            };
+        }
+
+        // --- History Loader ---
+        function loadHistory() {
+            const historyList = document.getElementById("history-list");
+            const savedPlans = JSON.parse(localStorage.getItem("smart_mat_plans") || "[]");
+            
+            if (savedPlans.length === 0) {
+                historyList.innerHTML = `<div class="history-empty">Inga tidigare planer sparade.</div>`;
+                return;
+            }
+            
+            historyList.innerHTML = "";
+            savedPlans.forEach(plan => {
+                const date = new Date(plan.created_at).toLocaleDateString("sv-SE", {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                });
+                
+                const activeClass = (currentPlan && currentPlan.id === plan.id) ? "active" : "";
+                
+                const item = document.createElement("div");
+                item.className = `history-item ${activeClass}`;
+                item.onclick = (e) => {
+                    if (e.target.closest('.btn-delete-history')) return;
+                    selectPlan(plan.id);
+                };
+                
+                let prefSummary = plan.preferences ? plan.preferences : "Standard";
+                if (prefSummary.length > 22) prefSummary = prefSummary.substring(0, 20) + "...";
+                
+                item.innerHTML = `
+                    <div class="history-info">
+                        <span class="history-name">${plan.days} Dagar (${plan.calories_target} kcal)</span>
+                        <span class="history-meta"><i class="fa-solid fa-tag"></i> ${prefSummary} &bull; ${date}</span>
+                    </div>
+                    <button class="btn-delete-history" onclick="deletePlan(${plan.id})" title="Ta bort plan">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                `;
+                historyList.appendChild(item);
+            });
+        }
+
+        function selectPlan(planId) {
+            const savedPlans = JSON.parse(localStorage.getItem("smart_mat_plans") || "[]");
+            const plan = savedPlans.find(p => p.id === planId);
+            if (!plan) return;
+            
+            currentPlan = plan;
+            document.getElementById("welcome-board").style.display = "none";
+            document.getElementById("dashboard").style.display = "block";
+            
+            renderPlanDetails(plan);
+            loadHistory();
+        }
+
+        function deletePlan(planId) {
+            if (!confirm("Vill du radera denna matplan?")) return;
+            
+            let savedPlans = JSON.parse(localStorage.getItem("smart_mat_plans") || "[]");
+            savedPlans = savedPlans.filter(p => p.id !== planId);
+            localStorage.setItem("smart_mat_plans", JSON.stringify(savedPlans));
+            
+            if (currentPlan && currentPlan.id === planId) {
+                currentPlan = null;
+                document.getElementById("dashboard").style.display = "none";
+                document.getElementById("welcome-board").style.display = "block";
+            }
+            
+            loadHistory();
+        }
+
+        // --- Controller Interactions ---
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const days = parseInt(document.getElementById("input-days").value);
+            const people = parseInt(document.getElementById("input-people").value);
+            const caloriesTarget = parseInt(document.getElementById("input-calories").value);
+            const otherPref = document.getElementById("input-other-pref").value.trim();
+            
+            const checkboxes = form.querySelectorAll('input[name="pref_tags"]:checked');
+            const checkedPrefs = Array.from(checkboxes).map(cb => cb.value);
+            if (otherPref) checkedPrefs.push(otherPref);
+            const preferencesString = checkedPrefs.join(", ");
+            
+            const overlay = document.getElementById("loading-overlay");
+            overlay.style.display = "flex";
+            
+            setTimeout(() => {
+                const plan = generateMealPlanOffline(days, people, caloriesTarget, preferencesString);
+                
+                const savedPlans = JSON.parse(localStorage.getItem("smart_mat_plans") || "[]");
+                savedPlans.unshift(plan);
+                localStorage.setItem("smart_mat_plans", JSON.stringify(savedPlans));
+                
+                currentPlan = plan;
+                overlay.style.display = "none";
+                document.getElementById("welcome-board").style.display = "none";
+                document.getElementById("dashboard").style.display = "block";
+                
+                renderPlanDetails(plan);
+                loadHistory();
+            }, 750);
+        }
+
+        function renderPlanDetails(plan) {
+            document.getElementById("plan-title").textContent = `Personlig Matplan (${plan.calories_target} kcal)`;
+            document.getElementById("plan-meta").innerHTML = `
+                <i class="fa-solid fa-users"></i> ${plan.people} personer &bull; 
+                <i class="fa-solid fa-calendar-day"></i> ${plan.days} dagar &bull; 
+                <i class="fa-solid fa-tag"></i> ${plan.preferences ? plan.preferences : 'Inga kostrestriktioner'}
+            `;
+            document.getElementById("dietitian-comment").textContent = plan.ai_comment;
+            
+            let totalCarbs = 0, totalProtein = 0, totalFat = 0;
+            const dayLabels = [], dailyCalorieTotals = [];
+            
+            plan.day_plans.forEach(day => {
+                dayLabels.push(`Dag ${day.day_number}`);
+                let dayCals = 0;
+                day.meals.forEach(meal => {
+                    totalCarbs += meal.carbohydrates;
+                    totalProtein += meal.protein;
+                    totalFat += meal.fat;
+                    dayCals += meal.calories;
+                });
+                dailyCalorieTotals.push(dayCals);
+            });
+            
+            const daysCount = plan.day_plans.length;
+            const avgCarbs = Math.round(totalCarbs / daysCount);
+            const avgProtein = Math.round(totalProtein / daysCount);
+            const avgFat = Math.round(totalFat / daysCount);
+            
+            document.getElementById("stats-carbs").textContent = `${avgCarbs}g`;
+            document.getElementById("stats-protein").textContent = `${avgProtein}g`;
+            document.getElementById("stats-fat").textContent = `${avgFat}g`;
+            document.getElementById("stats-target-calories").textContent = `${plan.calories_target} kcal / dag`;
+            
+            renderCalorieChart(dayLabels, dailyCalorieTotals, plan.calories_target);
+            renderMacroChart(avgCarbs, avgProtein, avgFat);
+            
+            const tabsContainer = document.getElementById("day-tabs");
+            tabsContainer.innerHTML = "";
+            plan.day_plans.forEach(day => {
+                const btn = document.createElement("button");
+                btn.className = `tab-btn ${day.day_number === 1 ? 'active' : ''}`;
+                btn.textContent = `Dag ${day.day_number}`;
+                btn.onclick = () => {
+                    tabsContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderMealsForDay(day.day_number);
+                };
+                tabsContainer.appendChild(btn);
+            });
+            
+            renderMealsForDay(1);
+        }
+
+        function renderCalorieChart(labels, dataPoints, targetCalories) {
+            const ctx = document.getElementById('calorieChart').getContext('2d');
+            if (calorieChartInstance) calorieChartInstance.destroy();
+            
+            calorieChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Beräknade kalorier', data: dataPoints,
+                            borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                            borderWidth: 3, fill: true, tension: 0.3,
+                            pointBackgroundColor: '#10b981', pointBorderColor: '#ffffff'
+                        },
+                        {
+                            label: 'Ditt kalorimål', data: Array(labels.length).fill(targetCalories),
+                            borderColor: 'rgba(239, 68, 68, 0.4)', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#9ca3af', font: { family: 'Inter', size: 11 } } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+
+        function renderMacroChart(carbs, protein, fat) {
+            const ctx = document.getElementById('macroChart').getContext('2d');
+            if (macroChartInstance) macroChartInstance.destroy();
+            
+            const carbKcal = carbs * 4, protKcal = protein * 4, fatKcal = fat * 9;
+            
+            macroChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Kolhydrater', 'Protein', 'Fett'],
+                    datasets: [{
+                        data: [carbKcal, protKcal, fatKcal],
+                        backgroundColor: ['#06b6d4', '#10b981', '#f97316'],
+                        borderWidth: 2, borderColor: '#111827'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const totalVal = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((context.raw / totalVal) * 100);
+                                    const grams = context.label === 'Kolhydrater' ? carbs : (context.label === 'Protein' ? protein : fat);
+                                    return `${context.label}: ${grams}g (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function renderMealsForDay(dayNumber) {
+            const grid = document.getElementById("meal-grid");
+            grid.innerHTML = "";
+            
+            const dayData = currentPlan.day_plans.find(d => d.day_number === dayNumber);
+            if (!dayData) return;
+            
+            dayData.meals.forEach((meal, idx) => {
+                const card = document.createElement("article");
+                card.className = "meal-card";
+                
+                let typeIcon = "🍳", typeLabel = "Frukost";
+                if (meal.meal_type === "lunch") { typeIcon = "🥗"; typeLabel = "Lunch"; }
+                else if (meal.meal_type === "dinner") { typeIcon = "🍲"; typeLabel = "Middag"; }
+                
+                let ingHtml = "";
+                meal.ingredients.forEach((ing, i) => {
+                    const inputId = `ing-${dayNumber}-${idx}-${i}`;
+                    ingHtml += `
+                        <li>
+                            <label style="display: flex; align-items: center; width: 100%; cursor: pointer;">
+                                <input type="checkbox" id="${inputId}" onchange="toggleIngredientCheck('${inputId}')">
+                                <span>${ing.name} (${ing.amount})</span>
+                            </label>
+                        </li>
+                    `;
+                });
+                
+                card.innerHTML = `
+                    <div class="meal-type-badge"><span>${typeIcon}</span><span>${typeLabel}</span></div>
+                    <h4>${meal.title}</h4>
+                    <p class="meal-desc">${meal.description}</p>
+                    <div class="meal-calories-badge">${meal.calories} kcal</div>
+                    <div class="meal-nutrients-grid">
+                        <div class="nutr-item"><span class="lbl">Kolhydrater</span><span class="num">${Math.round(meal.carbohydrates)}g</span></div>
+                        <div class="nutr-item"><span class="lbl">Protein</span><span class="num">${Math.round(meal.protein)}g</span></div>
+                        <div class="nutr-item"><span class="lbl">Fett</span><span class="num">${Math.round(meal.fat)}g</span></div>
+                    </div>
+                    <div class="meal-ingredients">
+                        <h5><i class="fa-solid fa-basket-shopping"></i> Ingredienser:</h5>
+                        <ul class="ing-list">${ingHtml}</ul>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function toggleIngredientCheck(id) {
+            const cb = document.getElementById(id);
+            if (!cb) return;
+            const label = cb.closest('label');
+            const span = label.querySelector('span');
+            if (cb.checked) {
+                span.style.textDecoration = "line-through";
+                span.style.color = "var(--text-muted)";
+            } else {
+                span.style.textDecoration = "none";
+                span.style.color = "var(--text-secondary)";
+            }
+        }
+    </script>
+</body>
+</html>
